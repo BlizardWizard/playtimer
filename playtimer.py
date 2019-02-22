@@ -1,64 +1,42 @@
 import configparser
 import psutil
-import time
+import json
 import io
+import os
+import threading
 
 
-app_data = configparser.ConfigParser()
-app_data.read('data.ini')
-
-config = configparser.ConfigParser()
-config.read('config.ini')
-config = config['config']
+def write_json(data):
+    with open('data.json') as json_file:
+        json.dump(data, json_file, indent=2)
 
 
-if config['mode'] == 'blacklist':
-    with io.open('blacklist.txt', 'r') as bypass_file:
-        bypass = bypass_file.readlines()
-        for item in bypass:
-            bypass[bypass.index(item)] = item.replace('\n', '')
-elif config['mode'] == 'whitelist':
-    with io.open('whitelist.txt', 'r') as bypass_file:
-        bypass = bypass_file.readlines()
-        for item in bypass:
-            bypass[bypass.index(item)] = item.replace('\n', '')
+def init():
+    file_paths = ['data.json', 'config.ini', 'blacklist.txt', 'whitelist.txt']
+    for path in file_paths:
+        if not os.path.exists(path):
+            open(path, 'w+').close()
 
 
-index = 0
-for proc in psutil.process_iter():
-    try:
-        processName = str(proc.name())
-        processID = proc.pid
+    config_file = configparser.ConfigParser()
+    config_file.read('config.ini')
+    config = config_file['config']
 
-        if config['mode'] == 'blacklist':
-            bypassed = False
-            if (processName in bypass):
-                bypassed = True
-                try:
-                    app_data.remove_section(processName)
-                except (configparser.NoSectionError):
-                    pass
-        elif config['mode'] == 'whitelist':
-            bypassed = True
-            if (processName in bypass):
-                bypassed = False
-                try:
-                    app_data.remove_section(processName)
-                except (configparser.NoSectionError):
-                    pass
+    json_ = None
+    with open('data.json', 'r') as json_file:
+        json_ = json.load(json_file)
+        json_file.close()
 
-        if not bypassed:
-            # app_data[processName] = {}
-            # uncomment this line to jumnpstart app.ini file initialization ^^^
-            app_data[processName]['index'] = str(index)
-            app_data[processName]['ID'] = str(processID)
-            playtime = str(app_data[processName].get('playtime', '0'))
-            app_data[processName]['playtime'] = playtime
-            index += 1
-    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-        pass
+    for proc in psutil.process_iter():
+        try:
+            processName = str(proc.name())
+            processID = proc.pid
+
+            json_[processName] = {'index': 0, 'id': 0, 'playtime': 0}
+
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    write_json(json_)
 
 
-with open('data.ini', 'w') as file:
-    app_data.write(file)
-    file.close()
+init()
